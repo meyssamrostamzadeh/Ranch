@@ -1,6 +1,9 @@
-../Core/Src/main.c:68:5:main	1
-../Core/Src/main.c:113:6:SystemClock_Config	3
-../Core/Src/main.c:150:13:MX_USART1_UART_Init	2
-../Core/Src/main.c:183:13:MX_USART2_UART_Init	2
-../Core/Src/main.c:216:13:MX_GPIO_Init	1
-../Core/Src/main.c:255:6:Error_Handler	1
+../Core/Src/main.c:39:6:main_routins	1
+../Core/Src/main.c:45:6:HAL_UART_TransmitString	1
+../Core/Src/main.c:49:6:HAL_UART_ReceiveString	1
+../Core/Src/main.c:95:5:main	13
+../Core/Src/main.c:186:6:SystemClock_Config	3
+../Core/Src/main.c:223:13:MX_USART1_UART_Init	2
+../Core/Src/main.c:256:13:MX_USART2_UART_Init	2
+../Core/Src/main.c:289:13:MX_GPIO_Init	1
+../Core/Src/main.c:328:6:Error_Handler	1

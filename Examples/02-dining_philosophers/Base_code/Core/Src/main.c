@@ -21,7 +21,34 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "string.h"
+// Flag variables for main_routins
+volatile uint8_t forkL_request_flag = 0;
+volatile uint8_t forkL_release_flag = 0;
+volatile uint8_t forkR_request_flag = 0;
+volatile uint8_t forkR_release_flag = 0;
 
+volatile uint8_t msgsrv_arrive_flag = 0;
+volatile uint8_t msgsrv_permit_flag = 0;
+volatile uint8_t msgsrv_eat_flag = 0;
+volatile uint8_t msgsrv_leave_flag = 0;
+
+char usart1_buffer[20];
+char usart2_buffer[20];
+
+void main_routins(void) {
+    // Example logic for setting the send_flag
+    // Add your custom logic here
+
+}
+
+void HAL_UART_TransmitString(UART_HandleTypeDef *huart, const char *str) {
+    HAL_UART_Transmit(huart, (uint8_t *)str, strlen(str), HAL_MAX_DELAY);
+}
+
+void HAL_UART_ReceiveString(UART_HandleTypeDef *huart, char *buffer, uint16_t len) {
+    HAL_UART_Receive(huart, (uint8_t *)buffer, len, HAL_MAX_DELAY);
+}
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -99,6 +126,52 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	  main_routins();
+
+	  if (forkL_request_flag) {
+	              HAL_UART_TransmitString(&huart1, "request");  // Send through USART1
+	              forkL_request_flag = 0;  // Clear flag after sending
+	          }
+	          if (forkL_release_flag) {
+	              HAL_UART_TransmitString(&huart1, "release");  // Send through USART1
+	              forkL_release_flag = 0;  // Clear flag after sending
+	          }
+	          if (forkR_request_flag) {
+	              HAL_UART_TransmitString(&huart2, "request");  // Send through USART2
+	              forkR_request_flag = 0;  // Clear flag after sending
+	          }
+	          if (forkR_release_flag) {
+	              HAL_UART_TransmitString(&huart2, "release");  // Send through USART2
+	              forkR_release_flag = 0;  // Clear flag after sending
+	          }
+
+	          // Poll for incoming messages on USART1
+	          HAL_UART_ReceiveString(&huart1, usart1_buffer, sizeof(usart1_buffer));
+	          if (strcmp(usart1_buffer, "arrive") == 0) {
+	              msgsrv_arrive_flag = 1;
+	          } else if (strcmp(usart1_buffer, "permit") == 0) {
+	              msgsrv_permit_flag = 1;
+	          } else if (strcmp(usart1_buffer, "eat") == 0) {
+	              msgsrv_eat_flag = 1;
+	          } else if (strcmp(usart1_buffer, "leave") == 0) {
+	              msgsrv_leave_flag = 1;
+	          }
+	          memset(usart1_buffer, 0, sizeof(usart1_buffer));  // Clear buffer
+
+	          // Poll for incoming messages on USART2
+	          HAL_UART_ReceiveString(&huart2, usart2_buffer, sizeof(usart2_buffer));
+	          if (strcmp(usart2_buffer, "arrive") == 0) {
+	              msgsrv_arrive_flag = 1;
+	          } else if (strcmp(usart2_buffer, "permit") == 0) {
+	              msgsrv_permit_flag = 1;
+	          } else if (strcmp(usart2_buffer, "eat") == 0) {
+	              msgsrv_eat_flag = 1;
+	          } else if (strcmp(usart2_buffer, "leave") == 0) {
+	              msgsrv_leave_flag = 1;
+	          }
+	          memset(usart2_buffer, 0, sizeof(usart2_buffer));  // Clear buffer
+
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
