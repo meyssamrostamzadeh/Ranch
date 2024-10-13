@@ -31,10 +31,8 @@
 UART_HandleTypeDef huart1;
 UART_HandleTypeDef huart2;
 // Message identifiers
-#define MSG_ARRIVE 1
-#define MSG_PERMIT 2
-#define MSG_EAT 3
-#define MSG_LEAVE 4
+#define MSG_NOTIFY 1
+
 
 // a struct to store message number and sender ID
 typedef struct {
@@ -60,23 +58,15 @@ volatile uint16_t usart2_rx_tail = 0;
 volatile uint8_t usart1_new_message_flag = 0;
 volatile uint8_t usart2_new_message_flag = 0;
 
-// Flag variables
-volatile uint8_t forkL_request_flag = 0;
-volatile uint8_t forkL_release_flag = 0;
-volatile uint8_t forkR_request_flag = 0;
-volatile uint8_t forkR_release_flag = 0;
 
-volatile uint8_t msgsrv_arrive_flag = 0;
-volatile uint8_t msgsrv_permit_flag = 0;
-volatile uint8_t msgsrv_eat_flag = 0;
-volatile uint8_t msgsrv_leave_flag = 0;
+
+volatile uint8_t msgsrv_notify_flag = 0;
+
 
 char usart1_buffer[20];
 char usart2_buffer[20];
 
-uint8_t eating;
-uint8_t fL;
-uint8_t fR;
+
 uint8_t sender;
 
 
@@ -89,22 +79,6 @@ void fifo_enqueue(uint8_t sender_id, uint8_t message_number);
 int is_fifo_empty();
 
 void check_send_flags() {
-    if (forkL_request_flag) {
-        send_usart_message(&huart1, "request");
-        forkL_request_flag = 0;
-    }
-    if (forkL_release_flag) {
-        send_usart_message(&huart1, "release");
-        forkL_release_flag = 0;
-    }
-    if (forkR_request_flag) {
-        send_usart_message(&huart2, "request");
-        forkR_request_flag = 0;
-    }
-    if (forkR_release_flag) {
-        send_usart_message(&huart2, "release");
-        forkR_release_flag = 0;
-    }
 }
 
 void check_USART_1_routine() {
@@ -114,14 +88,8 @@ void check_USART_1_routine() {
             message[i] = circular_buffer_read(usart1_rx_buffer, &usart1_rx_tail);
             if (message[i] == '\n') break;
         }
-        if (strcmp((const char *)message, "arrive") == 0) {
-            fifo_enqueue(1,MSG_ARRIVE);
-        } else if (strcmp((const char *)message, "permit") == 0) {
-            fifo_enqueue(1,MSG_PERMIT);
-        } else if (strcmp((const char *)message, "eat") == 0) {
-            fifo_enqueue(1,MSG_EAT);
-        } else if (strcmp((const char *)message, "leave") == 0) {
-            fifo_enqueue(1,MSG_LEAVE);
+        if (strcmp((const char *)message, "notify") == 0) {
+            fifo_enqueue(1,MSG_NOTIFY);
         }
     }
 }
@@ -133,32 +101,17 @@ void check_USART_2_routine() {
             message[i] = circular_buffer_read(usart2_rx_buffer, &usart2_rx_tail);
             if (message[i] == '\n') break;
         }
-        if (strcmp((const char *)message, "arrive") == 0) {
-            fifo_enqueue(2,MSG_ARRIVE);
-        } else if (strcmp((const char *)message, "permit") == 0) {
-            fifo_enqueue(2,MSG_PERMIT);
-        } else if (strcmp((const char *)message, "eat") == 0) {
-            fifo_enqueue(2,MSG_EAT);
-        } else if (strcmp((const char *)message, "leave") == 0) {
-            fifo_enqueue(2,MSG_LEAVE);
-        }
     }
 }
 
 void check_FIFO_queue() {
-    if (msgsrv_arrive_flag || msgsrv_permit_flag || msgsrv_eat_flag || msgsrv_leave_flag) return;
+    if (msgsrv_notify_flag) return;
 
     if (!is_fifo_empty()) {
         fifo_item_t item = fifo_dequeue();
         sender = item.sender_id;
-        if (item.message_number == MSG_ARRIVE) {
-            msgsrv_arrive_flag = 1;
-        } else if (item.message_number == MSG_PERMIT) {
-            msgsrv_permit_flag = 1;
-        } else if (item.message_number == MSG_EAT) {
-            msgsrv_eat_flag = 1;
-        } else if (item.message_number == MSG_LEAVE) {
-            msgsrv_leave_flag = 1;
+        if (item.message_number == MSG_NOTIFY) {
+            msgsrv_notify_flag = 1;
         }
     }
 }
@@ -237,6 +190,11 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef* huart) {
         }
         HAL_UART_Receive_IT(&huart2, &received_byte, 1);
     }
+}
+
+void function_play_alarm()
+{
+	HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
 }
 /* USER CODE END Includes */
 
@@ -323,146 +281,18 @@ int main(void)
       check_send_flags();
       check_FIFO_queue();
       asm("nop \n"
-    		  ".global eating \n"
-    		  ".global fL \n"
-    		  ".global fR \n"
     		  ".global sender \n"
-    		  ".global msgsrv_arrive_flag \n"
-    		  ".global msgsrv_permit_flag \n"
-    		  ".global msgsrv_eat_flag \n"
-    		  ".global msgsrv_leave_flag \n"
-    		  ".global forkL_request_flag \n"
-    		  ".global forkL_release_flag \n"
-    		  ".global forkR_request_flag \n"
-    		  ".global forkR_release_flag \n"
-    		  "ldr r0, =msgsrv_arrive_flag \n"
-    		  "ldr r1, [r0] \n"
-    		  "cmp r1, #1 \n"
-    		  "beq msgsrv_arrive \n"
-    		  "ldr r0, =msgsrv_permit_flag \n"
-    		  "ldr r1, [r0] \n"
-    		  "cmp r1, #1 \n"
-    		  "beq msgsrv_permit \n"
-    		  "ldr r0, =msgsrv_eat_flag \n"
-    		  "ldr r1, [r0] \n"
-    		  "cmp r1, #1 \n"
-    		  "beq msgsrv_eat \n"
-    		  "ldr r0, =msgsrv_leave_flag \n"
-    		  "ldr r1, [r0] \n"
-    		  "cmp r1, #1 \n"
-    		  "beq msgsrv_leave \n"
+    		  ".global msgsrv_notify_flag \n"
+    		  "ldr r1, =msgsrv_notify_flag \n"
+    		  "ldr r2, [r1] \n"
+    		  "cmp r2, #1 \n"
+    		  "beq msgsrv_notify \n"
     		  "b label_end \n"
-    		  "msgsrv_arrive: \n"
+    		  "msgsrv_notify: \n"
     		  "mov r0, #0 \n"
-    		  "ldr r1, =msgsrv_arrive_flag \n"
+    		  "ldr r1, =msgsrv_notify_flag \n"
     		  "str r0, [r1] \n"
-    		  "mov r0, #1 \n"
-    		  "ldr r1, =forkL_request_flag \n"
-    		  "str r0, [r1] \n"
-    		  "bx lr \n"
-    		  "msgsrv_permit: \n"
-    		  "mov r0, #0 \n"
-    		  "ldr r1, =msgsrv_permit_flag \n"
-    		  "str r0, [r1] \n"
-    		  "ldr r0, =sender \n"
-    		  "ldr r1, [r0] \n"
-    		  "cmp r1, #1 \n"
-    		  "beq else_label1 \n"
-    		  "ldr r0, =fL \n"
-    		  "ldr r1, [r0] \n"
-    		  "cmp r1, #0 \n"
-    		  "beq else_label2 \n"
-    		  "mov r2, #0 \n"
-    		  "b end_label2 \n"
-    		  "else_label2: \n"
-    		  "mov r2, #1 \n"
-    		  "end_label2: \n"
-    		  "cmp r2, #0 \n"
-    		  "beq else_label3 \n"
-    		  "mov r0, #1 \n"
-    		  "ldr r1, =fL \n"
-    		  "str r0, [r1] \n"
-    		  "mov r0, #1 \n"
-    		  "ldr r1, =forkR_request_flag \n"
-    		  "str r0, [r1] \n"
-    		  "b end_label3 \n"
-    		  "else_label3: \n"
-    		  "end_label3: \n"
-    		  "b end_label1 \n"
-    		  "else_label1: \n"
-    		  "ldr r0, =fL \n"
-    		  "ldr r1, [r0] \n"
-    		  "cmp r1, #0 \n"
-    		  "beq else_label13 \n"
-    		  "mov r2, #1 \n"
-    		  "b end_label13 \n"
-    		  "else_label13: \n"
-    		  "mov r2, #0 \n"
-    		  "end_label13: \n"
-    		  "ldr r0, =fR \n"
-    		  "ldr r1, [r0] \n"
-    		  "cmp r1, #0 \n"
-    		  "beq else_label14 \n"
-    		  "mov r3, #1 \n"
-    		  "b end_label14 \n"
-    		  "else_label14: \n"
-    		  "mov r3, #0 \n"
-    		  "end_label14: \n"
-    		  "cmp r3, #0 \n"
-    		  "beq else_label4 \n"
-    		  "mov r4, #0 \n"
-    		  "b end_label4 \n"
-    		  "else_label4: \n"
-    		  "mov r4, #1 \n"
-    		  "end_label4: \n"
-    		  "cmp r3, #0 \n"
-    		  "beq else_label5 \n"
-    		  "cmp r4, #0 \n"
-    		  "beq else_label5 \n"
-    		  "mov r0, #1 \n"
-    		  "ldr r1, =fR \n"
-    		  "str r0, [r1] \n"
-    		  "mov r0, #1 \n"
-    		  "ldr r1, =msgsrv_eat_flag \n"
-    		  "str r0, [r1] \n"
-    		  "b end_label5 \n"
-    		  "else_label5: \n"
-    		  "end_label5: \n"
-    		  "end_label1: \n"
-    		  "bx lr \n"
-    		  "msgsrv_eat: \n"
-    		  "mov r0, #0 \n"
-    		  "ldr r1, =msgsrv_eat_flag \n"
-    		  "str r0, [r1] \n"
-    		  "mov r0, #1 \n"
-    		  "ldr r1, =eating \n"
-    		  "str r0, [r1] \n"
-    		  "mov r0, #1 \n"
-    		  "ldr r1, =msgsrv_leave_flag \n"
-    		  "str r0, [r1] \n"
-    		  "bx lr \n"
-    		  "msgsrv_leave: \n"
-    		  "mov r0, #0 \n"
-    		  "ldr r1, =msgsrv_leave_flag \n"
-    		  "str r0, [r1] \n"
-    		  "mov r0, #0 \n"
-    		  "ldr r1, =fL \n"
-    		  "str r0, [r1] \n"
-    		  "mov r0, #0 \n"
-    		  "ldr r1, =fR \n"
-    		  "str r0, [r1] \n"
-    		  "mov r0, #0 \n"
-    		  "ldr r1, =eating \n"
-    		  "str r0, [r1] \n"
-    		  "mov r0, #1 \n"
-    		  "ldr r1, =forkL_release_flag \n"
-    		  "str r0, [r1] \n"
-    		  "mov r0, #1 \n"
-    		  "ldr r1, =forkR_release_flag \n"
-    		  "str r0, [r1] \n"
-    		  "mov r0, #1 \n"
-    		  "ldr r1, =msgsrv_arrive_flag \n"
-    		  "str r0, [r1] \n"
+    		  "bl function_play_alarm \n"
     		  "bx lr \n"
     		  "label_end: \n");
     /* USER CODE END WHILE */
