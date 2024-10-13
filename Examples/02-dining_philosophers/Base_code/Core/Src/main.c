@@ -22,6 +22,43 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "string.h"
+#include "stdio.h"
+#include "stm32f1xx_hal.h"
+
+#define BUFFER_SIZE 128  // Circular buffer size
+#define FIFO_SIZE 8
+
+// Message identifiers
+#define MSG_ARRIVE 1
+#define MSG_PERMIT 2
+#define MSG_EAT 3
+#define MSG_LEAVE 4
+
+UART_HandleTypeDef huart1;
+UART_HandleTypeDef huart2;
+// Message identifiers
+#define MSG_ARRIVE 1
+#define MSG_PERMIT 2
+#define MSG_EAT 3
+#define MSG_LEAVE 4
+
+uint8_t fifo_queue[FIFO_SIZE];
+uint8_t fifo_head = 0, fifo_tail = 0;
+
+
+uint8_t usart1_rx_buffer[BUFFER_SIZE];
+uint8_t usart2_rx_buffer[BUFFER_SIZE];
+uint8_t usart1_tx_buffer[BUFFER_SIZE];
+uint8_t usart2_tx_buffer[BUFFER_SIZE];
+
+volatile uint16_t usart1_rx_head = 0;
+volatile uint16_t usart1_rx_tail = 0;
+volatile uint16_t usart2_rx_head = 0;
+volatile uint16_t usart2_rx_tail = 0;
+
+volatile uint8_t usart1_new_message_flag = 0;
+volatile uint8_t usart2_new_message_flag = 0;
+
 // Flag variables for main_routins
 volatile uint8_t forkL_request_flag = 0;
 volatile uint8_t forkL_release_flag = 0;
@@ -36,18 +73,172 @@ volatile uint8_t msgsrv_leave_flag = 0;
 char usart1_buffer[20];
 char usart2_buffer[20];
 
-void main_routins(void) {
-    // Example logic for setting the send_flag
-    // Add your custom logic here
+void send_usart_message(UART_HandleTypeDef* huart, const char* message);
+uint8_t check_for_new_message(uint8_t* buffer, volatile uint16_t* head, volatile uint16_t* tail, volatile uint8_t* new_message_flag);
+uint8_t circular_buffer_read(uint8_t* buffer, volatile uint16_t* tail);
+uint8_t fifo_dequeue();
+void fifo_enqueue(uint8_t message_number);
+int is_fifo_empty();
 
+void check_send_flags() {
+    if (forkL_request_flag) {
+        send_usart_message(&huart1, "request");
+        forkL_request_flag = 0;
+    }
+    if (forkL_release_flag) {
+        send_usart_message(&huart1, "release");
+        forkL_release_flag = 0;
+    }
+    if (forkR_request_flag) {
+        send_usart_message(&huart2, "request");
+        forkR_request_flag = 0;
+    }
+    if (forkR_release_flag) {
+        send_usart_message(&huart2, "release");
+        forkR_release_flag = 0;
+    }
 }
 
-void HAL_UART_TransmitString(UART_HandleTypeDef *huart, const char *str) {
-    HAL_UART_Transmit(huart, (uint8_t *)str, strlen(str), HAL_MAX_DELAY);
+void check_USART_1_routine() {
+    if (check_for_new_message(usart1_rx_buffer, &usart1_rx_head, &usart1_rx_tail, &usart1_new_message_flag)) {
+        char message[BUFFER_SIZE];
+        // Read the message from the circular buffer
+        for (int i = 0; i < BUFFER_SIZE; i++) {
+            message[i] = circular_buffer_read(usart1_rx_buffer, &usart1_rx_tail);
+            if (message[i] == '\n') break;
+        }
+        // Identify message and store it in FIFO
+        if (strcmp((const char *)message, "arrive") == 0) {
+            fifo_enqueue(MSG_ARRIVE);
+        } else if (strcmp((const char *)message, "permit") == 0) {
+            fifo_enqueue(MSG_PERMIT);
+        } else if (strcmp((const char *)message, "eat") == 0) {
+            fifo_enqueue(MSG_EAT);
+        } else if (strcmp((const char *)message, "leave") == 0) {
+            fifo_enqueue(MSG_LEAVE);
+        }
+    }
 }
 
-void HAL_UART_ReceiveString(UART_HandleTypeDef *huart, char *buffer, uint16_t len) {
-    HAL_UART_Receive(huart, (uint8_t *)buffer, len, HAL_MAX_DELAY);
+void check_USART_2_routine() {
+    if (check_for_new_message(usart2_rx_buffer, &usart2_rx_head, &usart2_rx_tail, &usart2_new_message_flag)) {
+        char message[BUFFER_SIZE];
+        // Read the message from the circular buffer
+        for (int i = 0; i < BUFFER_SIZE; i++) {
+            message[i] = circular_buffer_read(usart2_rx_buffer, &usart2_rx_tail);
+            if (message[i] == '\n') break;
+        }
+        // Identify message and store it in FIFO
+        if (strcmp((const char *)message, "arrive") == 0) {
+            fifo_enqueue(MSG_ARRIVE);
+        } else if (strcmp((const char *)message, "permit") == 0) {
+            fifo_enqueue(MSG_PERMIT);
+        } else if (strcmp((const char *)message, "eat") == 0) {
+            fifo_enqueue(MSG_EAT);
+        } else if (strcmp((const char *)message, "leave") == 0) {
+            fifo_enqueue(MSG_LEAVE);
+        }
+    }
+}
+
+void check_FIFO_queue() {
+    // If any of the message flags are set, return
+    if (msgsrv_arrive_flag || msgsrv_permit_flag || msgsrv_eat_flag || msgsrv_leave_flag) return;
+
+    // If FIFO is not empty, dequeue and process the message
+    if (!is_fifo_empty()) {
+        uint8_t message = fifo_dequeue();
+
+        // Set the appropriate message flag
+        if (message == MSG_ARRIVE) {
+            msgsrv_arrive_flag = 1;
+        } else if (message == MSG_PERMIT) {
+            msgsrv_permit_flag = 1;
+        } else if (message == MSG_EAT) {
+            msgsrv_eat_flag = 1;
+        } else if (message == MSG_LEAVE) {
+            msgsrv_leave_flag = 1;
+        }
+    }
+}
+
+void fifo_enqueue(uint8_t message_number) {
+    fifo_queue[fifo_head] = message_number;
+    fifo_head = (fifo_head + 1) % FIFO_SIZE;
+}
+
+uint8_t fifo_dequeue() {
+    uint8_t message = fifo_queue[fifo_tail];
+    fifo_tail = (fifo_tail + 1) % FIFO_SIZE;
+    return message;
+}
+
+int is_fifo_empty() {
+    return fifo_head == fifo_tail;
+}
+
+
+const char* add_crlf(const char* str) {
+    static char buffer[BUFFER_SIZE];
+    snprintf(buffer, BUFFER_SIZE, "%s\r\n", str);
+    return buffer;
+}
+
+void send_usart_message(UART_HandleTypeDef* huart, const char* message) {
+    const char* msg_with_crlf = add_crlf(message);
+    HAL_UART_Transmit_IT(huart, (uint8_t*)msg_with_crlf, strlen(msg_with_crlf));
+}
+
+// Circular buffer write for receiving data
+void circular_buffer_write(uint8_t* buffer, volatile uint16_t* head, uint8_t data) {
+    buffer[*head] = data;
+    *head = (*head + 1) % BUFFER_SIZE;
+}
+
+uint8_t circular_buffer_read(uint8_t* buffer, volatile uint16_t* tail) {
+    uint8_t data = buffer[*tail];
+    *tail = (*tail + 1) % BUFFER_SIZE;
+    return data;
+}
+
+// Function to check if a complete message has been received (CRLF)
+uint8_t check_for_new_message(uint8_t* buffer, volatile uint16_t* head, volatile uint16_t* tail, volatile uint8_t* new_message_flag) {
+    if (*new_message_flag) {
+        *new_message_flag = 0;
+        return 1;
+    }
+    return 0;
+}
+
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef* huart) {
+    uint8_t received_byte;
+
+    if (huart->Instance == USART1) {
+        received_byte = huart->pRxBuffPtr[0];  // Received byte from USART1
+        circular_buffer_write(usart1_rx_buffer, &usart1_rx_head, received_byte);
+
+        // Check if last two bytes are CR (13) and LF (10)
+        uint16_t prev_index = (usart1_rx_head + BUFFER_SIZE - 2) % BUFFER_SIZE;
+        if (usart1_rx_buffer[prev_index] == 13 && usart1_rx_buffer[usart1_rx_head - 1] == 10) {
+            usart1_new_message_flag = 1;  // Set new message flag
+        }
+
+        // Ready to receive the next byte
+        HAL_UART_Receive_IT(&huart1, &received_byte, 1);
+    }
+    else if (huart->Instance == USART2) {
+        received_byte = huart->pRxBuffPtr[0];  // Received byte from USART2
+        circular_buffer_write(usart2_rx_buffer, &usart2_rx_head, received_byte);
+
+        // Check if last two bytes are CR (13) and LF (10)
+        uint16_t prev_index = (usart2_rx_head + BUFFER_SIZE - 2) % BUFFER_SIZE;
+        if (usart2_rx_buffer[prev_index] == 13 && usart2_rx_buffer[usart2_rx_head - 1] == 10) {
+            usart2_new_message_flag = 1;  // Set new message flag
+        }
+
+        // Ready to receive the next byte
+        HAL_UART_Receive_IT(&huart2, &received_byte, 1);
+    }
 }
 /* USER CODE END Includes */
 
@@ -124,53 +315,15 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+  uint8_t temp_byte;
+  HAL_UART_Receive_IT(&huart1, &temp_byte, 1);
+  HAL_UART_Receive_IT(&huart2, &temp_byte, 1);
   while (1)
   {
-	  main_routins();
-
-	  if (forkL_request_flag) {
-	              HAL_UART_TransmitString(&huart1, "request");  // Send through USART1
-	              forkL_request_flag = 0;  // Clear flag after sending
-	          }
-	          if (forkL_release_flag) {
-	              HAL_UART_TransmitString(&huart1, "release");  // Send through USART1
-	              forkL_release_flag = 0;  // Clear flag after sending
-	          }
-	          if (forkR_request_flag) {
-	              HAL_UART_TransmitString(&huart2, "request");  // Send through USART2
-	              forkR_request_flag = 0;  // Clear flag after sending
-	          }
-	          if (forkR_release_flag) {
-	              HAL_UART_TransmitString(&huart2, "release");  // Send through USART2
-	              forkR_release_flag = 0;  // Clear flag after sending
-	          }
-
-	          // Poll for incoming messages on USART1
-	          HAL_UART_ReceiveString(&huart1, usart1_buffer, sizeof(usart1_buffer));
-	          if (strcmp(usart1_buffer, "arrive") == 0) {
-	              msgsrv_arrive_flag = 1;
-	          } else if (strcmp(usart1_buffer, "permit") == 0) {
-	              msgsrv_permit_flag = 1;
-	          } else if (strcmp(usart1_buffer, "eat") == 0) {
-	              msgsrv_eat_flag = 1;
-	          } else if (strcmp(usart1_buffer, "leave") == 0) {
-	              msgsrv_leave_flag = 1;
-	          }
-	          memset(usart1_buffer, 0, sizeof(usart1_buffer));  // Clear buffer
-
-	          // Poll for incoming messages on USART2
-	          HAL_UART_ReceiveString(&huart2, usart2_buffer, sizeof(usart2_buffer));
-	          if (strcmp(usart2_buffer, "arrive") == 0) {
-	              msgsrv_arrive_flag = 1;
-	          } else if (strcmp(usart2_buffer, "permit") == 0) {
-	              msgsrv_permit_flag = 1;
-	          } else if (strcmp(usart2_buffer, "eat") == 0) {
-	              msgsrv_eat_flag = 1;
-	          } else if (strcmp(usart2_buffer, "leave") == 0) {
-	              msgsrv_leave_flag = 1;
-	          }
-	          memset(usart2_buffer, 0, sizeof(usart2_buffer));  // Clear buffer
-
+      check_USART_1_routine();
+      check_USART_2_routine();
+      check_send_flags();
+      check_FIFO_queue();
 
     /* USER CODE END WHILE */
 
