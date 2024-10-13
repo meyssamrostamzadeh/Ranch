@@ -42,7 +42,14 @@ UART_HandleTypeDef huart2;
 #define MSG_EAT 3
 #define MSG_LEAVE 4
 
-uint8_t fifo_queue[FIFO_SIZE];
+// a struct to store message number and sender ID
+typedef struct {
+    uint8_t sender_id;   // 1 for USART1, 2 for USART2
+    uint8_t message_number;
+} fifo_item_t;
+
+fifo_item_t fifo_queue[FIFO_SIZE];
+
 uint8_t fifo_head = 0, fifo_tail = 0;
 
 
@@ -59,7 +66,7 @@ volatile uint16_t usart2_rx_tail = 0;
 volatile uint8_t usart1_new_message_flag = 0;
 volatile uint8_t usart2_new_message_flag = 0;
 
-// Flag variables for main_routins
+// Flag variables
 volatile uint8_t forkL_request_flag = 0;
 volatile uint8_t forkL_release_flag = 0;
 volatile uint8_t forkR_request_flag = 0;
@@ -82,8 +89,9 @@ uint8_t sender;
 void send_usart_message(UART_HandleTypeDef* huart, const char* message);
 uint8_t check_for_new_message(uint8_t* buffer, volatile uint16_t* head, volatile uint16_t* tail, volatile uint8_t* new_message_flag);
 uint8_t circular_buffer_read(uint8_t* buffer, volatile uint16_t* tail);
-uint8_t fifo_dequeue();
-void fifo_enqueue(uint8_t message_number);
+fifo_item_t fifo_dequeue();
+void fifo_enqueue(uint8_t sender_id, uint8_t message_number);
+
 int is_fifo_empty();
 
 void check_send_flags() {
@@ -108,20 +116,18 @@ void check_send_flags() {
 void check_USART_1_routine() {
     if (check_for_new_message(usart1_rx_buffer, &usart1_rx_head, &usart1_rx_tail, &usart1_new_message_flag)) {
         char message[BUFFER_SIZE];
-        // Read the message from the circular buffer
         for (int i = 0; i < BUFFER_SIZE; i++) {
             message[i] = circular_buffer_read(usart1_rx_buffer, &usart1_rx_tail);
             if (message[i] == '\n') break;
         }
-        // Identify message and store it in FIFO
         if (strcmp((const char *)message, "arrive") == 0) {
-            fifo_enqueue(MSG_ARRIVE);
+            fifo_enqueue(1,MSG_ARRIVE);
         } else if (strcmp((const char *)message, "permit") == 0) {
-            fifo_enqueue(MSG_PERMIT);
+            fifo_enqueue(1,MSG_PERMIT);
         } else if (strcmp((const char *)message, "eat") == 0) {
-            fifo_enqueue(MSG_EAT);
+            fifo_enqueue(1,MSG_EAT);
         } else if (strcmp((const char *)message, "leave") == 0) {
-            fifo_enqueue(MSG_LEAVE);
+            fifo_enqueue(1,MSG_LEAVE);
         }
     }
 }
@@ -129,54 +135,50 @@ void check_USART_1_routine() {
 void check_USART_2_routine() {
     if (check_for_new_message(usart2_rx_buffer, &usart2_rx_head, &usart2_rx_tail, &usart2_new_message_flag)) {
         char message[BUFFER_SIZE];
-        // Read the message from the circular buffer
         for (int i = 0; i < BUFFER_SIZE; i++) {
             message[i] = circular_buffer_read(usart2_rx_buffer, &usart2_rx_tail);
             if (message[i] == '\n') break;
         }
-        // Identify message and store it in FIFO
         if (strcmp((const char *)message, "arrive") == 0) {
-            fifo_enqueue(MSG_ARRIVE);
+            fifo_enqueue(2,MSG_ARRIVE);
         } else if (strcmp((const char *)message, "permit") == 0) {
-            fifo_enqueue(MSG_PERMIT);
+            fifo_enqueue(2,MSG_PERMIT);
         } else if (strcmp((const char *)message, "eat") == 0) {
-            fifo_enqueue(MSG_EAT);
+            fifo_enqueue(2,MSG_EAT);
         } else if (strcmp((const char *)message, "leave") == 0) {
-            fifo_enqueue(MSG_LEAVE);
+            fifo_enqueue(2,MSG_LEAVE);
         }
     }
 }
 
 void check_FIFO_queue() {
-    // If any of the message flags are set, return
     if (msgsrv_arrive_flag || msgsrv_permit_flag || msgsrv_eat_flag || msgsrv_leave_flag) return;
 
-    // If FIFO is not empty, dequeue and process the message
     if (!is_fifo_empty()) {
-        uint8_t message = fifo_dequeue();
-
-        // Set the appropriate message flag
-        if (message == MSG_ARRIVE) {
+        fifo_item_t item = fifo_dequeue();
+        sender = item.sender_id;
+        if (item.message_number == MSG_ARRIVE) {
             msgsrv_arrive_flag = 1;
-        } else if (message == MSG_PERMIT) {
+        } else if (item.message_number == MSG_PERMIT) {
             msgsrv_permit_flag = 1;
-        } else if (message == MSG_EAT) {
+        } else if (item.message_number == MSG_EAT) {
             msgsrv_eat_flag = 1;
-        } else if (message == MSG_LEAVE) {
+        } else if (item.message_number == MSG_LEAVE) {
             msgsrv_leave_flag = 1;
         }
     }
 }
 
-void fifo_enqueue(uint8_t message_number) {
-    fifo_queue[fifo_head] = message_number;
+void fifo_enqueue(uint8_t sender_id, uint8_t message_number) {
+    fifo_queue[fifo_head].sender_id = sender_id;
+    fifo_queue[fifo_head].message_number = message_number;
     fifo_head = (fifo_head + 1) % FIFO_SIZE;
 }
 
-uint8_t fifo_dequeue() {
-    uint8_t message = fifo_queue[fifo_tail];
+fifo_item_t fifo_dequeue() {
+    fifo_item_t item = fifo_queue[fifo_tail];
     fifo_tail = (fifo_tail + 1) % FIFO_SIZE;
-    return message;
+    return item;
 }
 
 int is_fifo_empty() {
@@ -228,21 +230,17 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef* huart) {
         if (usart1_rx_buffer[prev_index] == 13 && usart1_rx_buffer[usart1_rx_head - 1] == 10) {
             usart1_new_message_flag = 1;  // Set new message flag
         }
-
         // Ready to receive the next byte
         HAL_UART_Receive_IT(&huart1, &received_byte, 1);
     }
     else if (huart->Instance == USART2) {
-        received_byte = huart->pRxBuffPtr[0];  // Received byte from USART2
+        received_byte = huart->pRxBuffPtr[0];
         circular_buffer_write(usart2_rx_buffer, &usart2_rx_head, received_byte);
 
-        // Check if last two bytes are CR (13) and LF (10)
         uint16_t prev_index = (usart2_rx_head + BUFFER_SIZE - 2) % BUFFER_SIZE;
         if (usart2_rx_buffer[prev_index] == 13 && usart2_rx_buffer[usart2_rx_head - 1] == 10) {
-            usart2_new_message_flag = 1;  // Set new message flag
+            usart2_new_message_flag = 1;
         }
-
-        // Ready to receive the next byte
         HAL_UART_Receive_IT(&huart2, &received_byte, 1);
     }
 }
