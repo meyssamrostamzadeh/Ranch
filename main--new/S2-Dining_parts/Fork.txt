@@ -1,0 +1,62 @@
+knownrebecs
+	{
+		Philosopher philL;
+		Philosopher philR;
+	}
+	statevars
+	{
+		boolean lAssign;	
+		boolean rAssign;	
+		boolean leftReq;
+		boolean rightReq;
+	}
+	Fork()
+	{ 
+		lAssign = false;
+		rAssign = false;
+		leftReq = false;
+		rightReq = false;
+	}
+
+	msgsrv request()
+	{
+		if (sender == philL) {
+			if (!leftReq) {
+				leftReq = true;
+				if (!rAssign) {
+					lAssign = true;
+					philL.permit();
+				}
+			} 
+			/* else discard message */
+		}
+		else {
+			if (!rightReq) {
+				rightReq = true;
+				if (!lAssign) {
+					rAssign = true;
+					philR.permit();
+				}
+			}
+			/* else discard message */
+		}
+	}
+	msgsrv release()
+	{
+		if (sender == philL && lAssign){
+			leftReq = false;
+			lAssign = false;
+			if (rightReq) {
+				rAssign=true;
+				philR.permit();
+			}
+		}
+		if (sender == philR && rAssign){
+			rAssign = false;
+			rightReq = false;
+			if (leftReq) {
+				lAssign=true;
+				philL.permit();
+			}
+		}
+	}

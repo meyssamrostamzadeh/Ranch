@@ -1,0 +1,7 @@
+Philosopher phil0(fork0, fork2):();
+       Philosopher phil1(fork0, fork1):();
+       Philosopher phil2(fork1, fork2):();
+
+       Fork fork0(phil0, phil1):();
+       Fork fork1(phil1, phil2):();
+       Fork fork2(phil2, phil0):();

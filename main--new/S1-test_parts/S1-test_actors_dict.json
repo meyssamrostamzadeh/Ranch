@@ -1,0 +1,27 @@
+{
+    "c": {
+        "statevars": {
+            "accum": "int"
+        },
+        "msgsrvs": {
+            "inc": "msgsrv inc() {\n    if(accum == 1) {\n        accum = 0;\n    }\n    else{\n        accum = 1;\n        a.notify();\n    }\n    self.inc();\n  }"
+        },
+        "knownrebecs": {
+            "a": "a"
+        },
+        "flags": [
+            "flag_inc",
+            "flag_notify_a"
+        ]
+    },
+    "a": {
+        "statevars": {},
+        "msgsrvs": {
+            "notify": "msgsrv notify () {}"
+        },
+        "knownrebecs": {},
+        "flags": [
+            "flag_notify"
+        ]
+    }
+}

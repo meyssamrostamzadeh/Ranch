@@ -1,0 +1,17 @@
+knownrebecs { Alarm a; }
+  statevars { 
+  int accum; }
+  Counter() {
+    accum=0;
+    self.inc();
+  }
+  msgsrv inc() {
+    if(accum == 1) {
+        accum = 0;
+    }
+    else{
+        accum = 1;
+        a.notify();
+    }
+    self.inc();
+  }

@@ -1,0 +1,2 @@
+Counter c(a):();
+  Alarm a():();

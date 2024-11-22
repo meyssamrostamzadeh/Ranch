@@ -1,0 +1,35 @@
+{
+    "Philosopher": {
+        "knownrebecs": {
+            "forkL": "Fork",
+            "forkR": "Fork"
+        },
+        "statevars": {
+            "eating": "boolean",
+            "fL": "boolean",
+            "fR": "boolean"
+        },
+        "msgsrvs": {
+            "arrive": "msgsrv arrive()\n\t{\n\t\tforkL.request();\n\t}",
+            "permit": "msgsrv permit()\n\t{\n\t\tif (sender == forkL) {\n\t\t\tif (!fL) {\n\t\t\t\tfL = true;\n\t\t\t\tforkR.request();\n\t\t\t}\n\t\t}\n\t\telse {\n\t\t\tif (fL && !(fR)) {\n\t\t\t\tfR = true;\n\t\t\t\tself.eat();\n\t\t\t}\n\t\t\t/* else discard the message */\n\t\t}\n\t}",
+            "eat": "msgsrv eat()\n\t{\n\t\teating = true;\n\t\tself.leave();\n\t}",
+            "leave": "msgsrv leave()\n\t{\n\t\tfL = false;\n\t\tfR = false;\n\t\teating = false;\n\t\tforkL.release();\n\t\tforkR.release();\n\t\tself.arrive();\n\t}"
+        }
+    },
+    "Fork": {
+        "knownrebecs": {
+            "philL": "Philosopher",
+            "philR": "Philosopher"
+        },
+        "statevars": {
+            "lAssign": "boolean",
+            "rAssign": "boolean",
+            "leftReq": "boolean",
+            "rightReq": "boolean"
+        },
+        "msgsrvs": {
+            "request": "msgsrv request()\n\t{\n\t\tif (sender == philL) {\n\t\t\tif (!leftReq) {\n\t\t\t\tleftReq = true;\n\t\t\t\tif (!rAssign) {\n\t\t\t\t\tlAssign = true;\n\t\t\t\t\tphilL.permit();\n\t\t\t\t}\n\t\t\t} \n\t\t\t/* else discard message */\n\t\t}\n\t\telse {\n\t\t\tif (!rightReq) {\n\t\t\t\trightReq = true;\n\t\t\t\tif (!lAssign) {\n\t\t\t\t\trAssign = true;\n\t\t\t\t\tphilR.permit();\n\t\t\t\t}\n\t\t\t}\n\t\t\t/* else discard message */\n\t\t}\n\t}",
+            "release": "msgsrv release()\n\t{\n\t\tif (sender == philL && lAssign){\n\t\t\tleftReq = false;\n\t\t\tlAssign = false;\n\t\t\tif (rightReq) {\n\t\t\t\trAssign=true;\n\t\t\t\tphilR.permit();\n\t\t\t}\n\t\t}\n\t\tif (sender == philR && rAssign){\n\t\t\trAssign = false;\n\t\t\trightReq = false;\n\t\t\tif (leftReq) {\n\t\t\t\tlAssign=true;\n\t\t\t\tphilL.permit();\n\t\t\t}\n\t\t}\n\t}"
+        }
+    }
+}

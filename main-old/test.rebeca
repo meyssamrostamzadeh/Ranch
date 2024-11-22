@@ -1,0 +1,97 @@
+reactiveclass Philosopher(3)
+{
+    knownrebecs
+    {
+        Fork fork;
+    }
+    statevars
+    {
+        boolean eating;
+        boolean fL;
+        boolean fR;
+    }
+    msgsrv initial()
+    {
+        fL = false;
+        fR = false;
+        eating = false;
+        self.arrive();
+    }
+    msgsrv arrive()
+    {
+        fork.request();
+    }
+    msgsrv permit()
+    {
+        if (sender == fork) {
+            if (!fL) {
+                fL = true;
+                fork.request();
+            }
+        }
+        else {
+            if (fL && fR) {
+                fR = true;
+                self.eat();
+            }
+        }
+    }
+    msgsrv eat()
+    {
+        eating = true;
+        self.leave();
+    }
+    msgsrv leave()
+    {
+        fL = false;
+        fR = false;
+        eating = false;
+        fork.release();
+        self.arrive();
+    }
+}
+
+reactiveclass Fork(3)
+{
+	knownrebecs
+	{
+		Philosopher phil;
+	}
+	statevars
+	{
+		boolean lAssign;	
+		boolean rAssign;	
+		boolean leftReq;
+		boolean rightReq;
+	}
+	msgsrv initial()
+	{ 
+		lAssign = false;
+		rAssign = false;
+		leftReq = false;
+		rightReq = false;
+	}
+
+	msgsrv request()
+	{
+		if (sender == philL) {
+			lAssign = true;
+			phil.permit(); 
+		}
+		else {
+			rightReq = true;
+			phil.permit();
+		}
+	}
+	msgsrv release()
+	{
+		if (!lAssign){
+			leftReq = false;
+			phil.permit();
+		}
+		if (!rAssign){
+			rAssign = false;
+			phil.permit();
+		}
+	}
+}

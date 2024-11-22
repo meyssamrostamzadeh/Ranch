@@ -1,0 +1,167 @@
+{
+    "phil0": {
+        "statevars": {
+            "eating": "boolean",
+            "fL": "boolean",
+            "fR": "boolean"
+        },
+        "msgsrvs": {
+            "arrive": "msgsrv arrive()\n\t{\n\t\tforkL.request();\n\t}",
+            "permit": "msgsrv permit()\n\t{\n\t\tif (sender == forkL) {\n\t\t\tif (!fL) {\n\t\t\t\tfL = true;\n\t\t\t\tforkR.request();\n\t\t\t}\n\t\t}\n\t\telse {\n\t\t\tif (fL && !(fR)) {\n\t\t\t\tfR = true;\n\t\t\t\tself.eat();\n\t\t\t}\n\t\t\t/* else discard the message */\n\t\t}\n\t}",
+            "eat": "msgsrv eat()\n\t{\n\t\teating = true;\n\t\tself.leave();\n\t}",
+            "leave": "msgsrv leave()\n\t{\n\t\tfL = false;\n\t\tfR = false;\n\t\teating = false;\n\t\tforkL.release();\n\t\tforkR.release();\n\t\tself.arrive();\n\t}"
+        },
+        "knownrebecs": {
+            "forkL": "fork0",
+            "forkR": " fork2"
+        },
+        "flags": [
+            "flag_arrive",
+            "flag_permit",
+            "flag_eat",
+            "flag_leave",
+            "flag_request_fork0",
+            "flag_release_fork0",
+            "flag_request_fork2",
+            "flag_release_fork2"
+        ]
+    },
+    "phil1": {
+        "statevars": {
+            "eating": "boolean",
+            "fL": "boolean",
+            "fR": "boolean"
+        },
+        "msgsrvs": {
+            "arrive": "msgsrv arrive()\n\t{\n\t\tforkL.request();\n\t}",
+            "permit": "msgsrv permit()\n\t{\n\t\tif (sender == forkL) {\n\t\t\tif (!fL) {\n\t\t\t\tfL = true;\n\t\t\t\tforkR.request();\n\t\t\t}\n\t\t}\n\t\telse {\n\t\t\tif (fL && !(fR)) {\n\t\t\t\tfR = true;\n\t\t\t\tself.eat();\n\t\t\t}\n\t\t\t/* else discard the message */\n\t\t}\n\t}",
+            "eat": "msgsrv eat()\n\t{\n\t\teating = true;\n\t\tself.leave();\n\t}",
+            "leave": "msgsrv leave()\n\t{\n\t\tfL = false;\n\t\tfR = false;\n\t\teating = false;\n\t\tforkL.release();\n\t\tforkR.release();\n\t\tself.arrive();\n\t}"
+        },
+        "knownrebecs": {
+            "forkL": "fork0",
+            "forkR": " fork1"
+        },
+        "flags": [
+            "flag_arrive",
+            "flag_permit",
+            "flag_eat",
+            "flag_leave",
+            "flag_request_fork0",
+            "flag_release_fork0",
+            "flag_request_fork1",
+            "flag_release_fork1"
+        ]
+    },
+    "phil2": {
+        "statevars": {
+            "eating": "boolean",
+            "fL": "boolean",
+            "fR": "boolean"
+        },
+        "msgsrvs": {
+            "arrive": "msgsrv arrive()\n\t{\n\t\tforkL.request();\n\t}",
+            "permit": "msgsrv permit()\n\t{\n\t\tif (sender == forkL) {\n\t\t\tif (!fL) {\n\t\t\t\tfL = true;\n\t\t\t\tforkR.request();\n\t\t\t}\n\t\t}\n\t\telse {\n\t\t\tif (fL && !(fR)) {\n\t\t\t\tfR = true;\n\t\t\t\tself.eat();\n\t\t\t}\n\t\t\t/* else discard the message */\n\t\t}\n\t}",
+            "eat": "msgsrv eat()\n\t{\n\t\teating = true;\n\t\tself.leave();\n\t}",
+            "leave": "msgsrv leave()\n\t{\n\t\tfL = false;\n\t\tfR = false;\n\t\teating = false;\n\t\tforkL.release();\n\t\tforkR.release();\n\t\tself.arrive();\n\t}"
+        },
+        "knownrebecs": {
+            "forkL": "fork1",
+            "forkR": " fork2"
+        },
+        "flags": [
+            "flag_arrive",
+            "flag_permit",
+            "flag_eat",
+            "flag_leave",
+            "flag_request_fork1",
+            "flag_release_fork1",
+            "flag_request_fork2",
+            "flag_release_fork2"
+        ]
+    },
+    "fork0": {
+        "statevars": {
+            "lAssign": "boolean",
+            "rAssign": "boolean",
+            "leftReq": "boolean",
+            "rightReq": "boolean"
+        },
+        "msgsrvs": {
+            "request": "msgsrv request()\n\t{\n\t\tif (sender == philL) {\n\t\t\tif (!leftReq) {\n\t\t\t\tleftReq = true;\n\t\t\t\tif (!rAssign) {\n\t\t\t\t\tlAssign = true;\n\t\t\t\t\tphilL.permit();\n\t\t\t\t}\n\t\t\t} \n\t\t\t/* else discard message */\n\t\t}\n\t\telse {\n\t\t\tif (!rightReq) {\n\t\t\t\trightReq = true;\n\t\t\t\tif (!lAssign) {\n\t\t\t\t\trAssign = true;\n\t\t\t\t\tphilR.permit();\n\t\t\t\t}\n\t\t\t}\n\t\t\t/* else discard message */\n\t\t}\n\t}",
+            "release": "msgsrv release()\n\t{\n\t\tif (sender == philL && lAssign){\n\t\t\tleftReq = false;\n\t\t\tlAssign = false;\n\t\t\tif (rightReq) {\n\t\t\t\trAssign=true;\n\t\t\t\tphilR.permit();\n\t\t\t}\n\t\t}\n\t\tif (sender == philR && rAssign){\n\t\t\trAssign = false;\n\t\t\trightReq = false;\n\t\t\tif (leftReq) {\n\t\t\t\tlAssign=true;\n\t\t\t\tphilL.permit();\n\t\t\t}\n\t\t}\n\t}"
+        },
+        "knownrebecs": {
+            "philL": "phil0",
+            "philR": " phil1"
+        },
+        "flags": [
+            "flag_request",
+            "flag_release",
+            "flag_arrive_phil0",
+            "flag_permit_phil0",
+            "flag_eat_phil0",
+            "flag_leave_phil0",
+            "flag_arrive_phil1",
+            "flag_permit_phil1",
+            "flag_eat_phil1",
+            "flag_leave_phil1"
+        ]
+    },
+    "fork1": {
+        "statevars": {
+            "lAssign": "boolean",
+            "rAssign": "boolean",
+            "leftReq": "boolean",
+            "rightReq": "boolean"
+        },
+        "msgsrvs": {
+            "request": "msgsrv request()\n\t{\n\t\tif (sender == philL) {\n\t\t\tif (!leftReq) {\n\t\t\t\tleftReq = true;\n\t\t\t\tif (!rAssign) {\n\t\t\t\t\tlAssign = true;\n\t\t\t\t\tphilL.permit();\n\t\t\t\t}\n\t\t\t} \n\t\t\t/* else discard message */\n\t\t}\n\t\telse {\n\t\t\tif (!rightReq) {\n\t\t\t\trightReq = true;\n\t\t\t\tif (!lAssign) {\n\t\t\t\t\trAssign = true;\n\t\t\t\t\tphilR.permit();\n\t\t\t\t}\n\t\t\t}\n\t\t\t/* else discard message */\n\t\t}\n\t}",
+            "release": "msgsrv release()\n\t{\n\t\tif (sender == philL && lAssign){\n\t\t\tleftReq = false;\n\t\t\tlAssign = false;\n\t\t\tif (rightReq) {\n\t\t\t\trAssign=true;\n\t\t\t\tphilR.permit();\n\t\t\t}\n\t\t}\n\t\tif (sender == philR && rAssign){\n\t\t\trAssign = false;\n\t\t\trightReq = false;\n\t\t\tif (leftReq) {\n\t\t\t\tlAssign=true;\n\t\t\t\tphilL.permit();\n\t\t\t}\n\t\t}\n\t}"
+        },
+        "knownrebecs": {
+            "philL": "phil1",
+            "philR": " phil2"
+        },
+        "flags": [
+            "flag_request",
+            "flag_release",
+            "flag_arrive_phil1",
+            "flag_permit_phil1",
+            "flag_eat_phil1",
+            "flag_leave_phil1",
+            "flag_arrive_phil2",
+            "flag_permit_phil2",
+            "flag_eat_phil2",
+            "flag_leave_phil2"
+        ]
+    },
+    "fork2": {
+        "statevars": {
+            "lAssign": "boolean",
+            "rAssign": "boolean",
+            "leftReq": "boolean",
+            "rightReq": "boolean"
+        },
+        "msgsrvs": {
+            "request": "msgsrv request()\n\t{\n\t\tif (sender == philL) {\n\t\t\tif (!leftReq) {\n\t\t\t\tleftReq = true;\n\t\t\t\tif (!rAssign) {\n\t\t\t\t\tlAssign = true;\n\t\t\t\t\tphilL.permit();\n\t\t\t\t}\n\t\t\t} \n\t\t\t/* else discard message */\n\t\t}\n\t\telse {\n\t\t\tif (!rightReq) {\n\t\t\t\trightReq = true;\n\t\t\t\tif (!lAssign) {\n\t\t\t\t\trAssign = true;\n\t\t\t\t\tphilR.permit();\n\t\t\t\t}\n\t\t\t}\n\t\t\t/* else discard message */\n\t\t}\n\t}",
+            "release": "msgsrv release()\n\t{\n\t\tif (sender == philL && lAssign){\n\t\t\tleftReq = false;\n\t\t\tlAssign = false;\n\t\t\tif (rightReq) {\n\t\t\t\trAssign=true;\n\t\t\t\tphilR.permit();\n\t\t\t}\n\t\t}\n\t\tif (sender == philR && rAssign){\n\t\t\trAssign = false;\n\t\t\trightReq = false;\n\t\t\tif (leftReq) {\n\t\t\t\tlAssign=true;\n\t\t\t\tphilL.permit();\n\t\t\t}\n\t\t}\n\t}"
+        },
+        "knownrebecs": {
+            "philL": "phil2",
+            "philR": " phil0"
+        },
+        "flags": [
+            "flag_request",
+            "flag_release",
+            "flag_arrive_phil2",
+            "flag_permit_phil2",
+            "flag_eat_phil2",
+            "flag_leave_phil2",
+            "flag_arrive_phil0",
+            "flag_permit_phil0",
+            "flag_eat_phil0",
+            "flag_leave_phil0"
+        ]
+    }
+}
